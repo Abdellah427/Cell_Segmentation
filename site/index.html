@@ -3,185 +3,183 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cell Segmentation - U-Net</title>
-<meta name="description" content="Segmentation de cellules par U-Net (PyTorch Lightning) sur le dataset ISBI-2012.">
+<title>Cell Segmentation / U-Net</title>
+<meta name="description" content="Segmentation des membranes cellulaires par U-Net (PyTorch Lightning) sur le dataset ISBI-2012.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --paper:#f4f7f1;
-    --paper2:#eaf0e6;
-    --ink:#17251d;
-    --muted:#5d6d62;
-    --line:#dbe4d6;
-    --teal:#1f9e89;
-    --violet:#463f8a;
-    --lime:#7fae00;
-    --card:#ffffff;
-    --shadow:0 20px 50px -20px rgba(30,50,40,.35);
+    --paper:#fafafa;
+    --ink:#14161a;
+    --muted:#6a6f78;
+    --rule:#e4e5e9;
+    --accent:#1a7f72;         /* deep viridis teal, readable on white */
+    --mark:rgba(196,214,0,.42);/* chartreuse specimen highlight */
+    --grid:rgba(20,22,26,.035);
+    --maxw:940px;
+    --textw:720px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
   body{
-    font-family:"DM Sans",system-ui,sans-serif;
-    color:var(--ink);background:var(--paper);line-height:1.68;
-    -webkit-font-smoothing:antialiased;overflow-x:hidden;position:relative;
+    font-family:"IBM Plex Sans",system-ui,sans-serif;
+    color:var(--ink);background-color:var(--paper);line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:32px 32px;background-attachment:fixed;
   }
-  #cells{position:fixed;inset:0;z-index:0;pointer-events:none}
-  .wrap{max-width:1060px;margin:0 auto;padding:0 26px;position:relative;z-index:1}
-  h1,h2,h3,.display{font-family:"Fraunces",Georgia,serif}
-  .mono{font-family:"DM Mono",monospace}
+  .mono{font-family:"IBM Plex Mono",monospace}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+  a{color:var(--accent)}
+  mark{background:var(--mark);color:inherit;padding:0 .12em}
 
-  /* NAV */
-  nav{position:sticky;top:0;z-index:40;
-    background:rgba(244,247,241,.8);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
-  .brand{display:flex;align-items:center;gap:11px;font-weight:600}
-  .brand .cell{width:20px;height:20px;border-radius:50%;
-    background:radial-gradient(circle at 35% 30%,#fff 0 12%,var(--teal) 40%,var(--violet) 100%);
-    box-shadow:0 0 0 3px rgba(31,158,137,.18)}
-  .nav-links{display:flex;gap:28px;font-size:.94rem}
-  .nav-links a{color:var(--muted);text-decoration:none;transition:.2s}
-  .nav-links a:hover{color:var(--teal)}
-  @media(max-width:620px){.nav-links{display:none}}
+  /* TOP BAR */
+  .topbar{position:sticky;top:0;z-index:30;background:var(--paper);border-bottom:1px solid var(--ink)}
+  .topbar .wrap{display:flex;align-items:center;justify-content:space-between;height:52px;
+    font-family:"IBM Plex Mono",monospace;font-size:.76rem;letter-spacing:.08em}
+  .topbar .id{font-weight:600}
+  .topbar .id .sq{display:inline-block;width:9px;height:9px;background:var(--accent);margin-right:8px}
+  .topbar nav{display:flex;gap:22px}
+  .topbar nav a{color:var(--muted);text-decoration:none}
+  .topbar nav a:hover{color:var(--ink)}
+  @media(max-width:640px){.topbar nav{display:none}}
 
   /* HERO */
-  header{padding:96px 0 72px;text-align:center}
-  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:.8rem;letter-spacing:.14em;
-    text-transform:uppercase;color:var(--teal);font-weight:600;margin-bottom:22px}
-  .kicker::before,.kicker::after{content:"";width:26px;height:1px;background:var(--teal);opacity:.5}
-  header h1{font-size:clamp(2.6rem,7vw,4.6rem);font-weight:600;line-height:1.02;letter-spacing:-.02em}
-  header h1 em{font-style:italic;color:var(--teal)}
-  header .lead{max-width:600px;margin:24px auto 0;color:var(--muted);font-size:1.16rem}
-  .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:36px}
-  .btn{padding:14px 28px;border-radius:100px;font-weight:600;font-size:.96rem;text-decoration:none;
-    transition:.22s;font-family:"DM Sans",sans-serif}
-  .btn.solid{background:var(--ink);color:var(--paper)}
-  .btn.solid:hover{background:var(--teal);transform:translateY(-2px)}
-  .btn.line{border:1px solid var(--line);color:var(--ink);background:var(--card)}
-  .btn.line:hover{border-color:var(--teal);color:var(--teal)}
+  header{padding:72px 0 56px;border-bottom:1px solid var(--rule)}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.76rem;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:22px}
+  h1{font-size:clamp(2.1rem,5.2vw,3.5rem);font-weight:600;line-height:1.06;letter-spacing:-.025em;
+    max-width:16ch;text-wrap:balance}
+  header p.abstract{max-width:var(--textw);margin-top:22px;font-size:1.1rem;color:#33373d}
+  .meta{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--rule);margin-top:32px;max-width:var(--textw)}
+  .meta div{flex:1 1 auto;min-width:150px;padding:12px 16px;border-right:1px solid var(--rule);
+    font-family:"IBM Plex Mono",monospace;font-size:.8rem}
+  .meta div:last-child{border-right:none}
+  .meta .k{color:var(--muted);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase}
+  .meta .v{margin-top:3px;font-weight:500}
+  .cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:32px}
+  .btn{font-family:"IBM Plex Mono",monospace;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;
+    padding:12px 20px;border:1px solid var(--ink);text-decoration:none;color:var(--ink);transition:.15s}
+  .btn.fill{background:var(--ink);color:var(--paper)}
+  .btn:hover{background:var(--accent);border-color:var(--accent);color:#fff}
 
-  .metrics{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:64px}
-  .metric{background:var(--card);border:1px solid var(--line);border-radius:20px;
-    padding:20px 30px;min-width:130px;box-shadow:var(--shadow)}
-  .metric .n{font-family:"Fraunces",serif;font-size:2.1rem;font-weight:600;color:var(--teal)}
-  .metric:nth-child(2) .n{color:var(--violet)}
-  .metric:nth-child(3) .n{color:var(--lime)}
-  .metric .l{font-size:.82rem;color:var(--muted);margin-top:2px}
+  /* STATS */
+  .stats{display:flex;border:1px solid var(--rule);margin-top:40px;max-width:var(--textw)}
+  .stat{flex:1;padding:18px 20px;border-right:1px solid var(--rule)}
+  .stat:last-child{border-right:none}
+  .stat .n{font-size:1.8rem;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .stat .l{font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted);margin-top:4px}
 
   /* SECTIONS */
-  section{padding:76px 0}
-  .eyebrow{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);font-weight:600}
-  h2{font-size:clamp(2rem,4.5vw,3rem);font-weight:600;letter-spacing:-.02em;margin:10px 0 12px}
-  .sub{color:var(--muted);max-width:620px;font-size:1.08rem}
+  section{padding:64px 0;border-bottom:1px solid var(--rule)}
+  .shead{font-family:"IBM Plex Mono",monospace;font-size:.78rem;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .shead .num{color:var(--accent);font-weight:600}
+  h2{font-size:clamp(1.6rem,3.4vw,2.2rem);font-weight:600;letter-spacing:-.02em;margin-bottom:10px}
+  .lead{color:var(--muted);max-width:var(--textw);font-size:1.02rem}
 
-  /* GALLERY */
-  .gallery{display:flex;flex-direction:column;gap:34px;margin-top:46px}
-  .shot{background:var(--card);border:1px solid var(--line);border-radius:26px;overflow:hidden;
-    box-shadow:var(--shadow);transition:.25s}
-  .shot:hover{transform:translateY(-5px)}
-  .shot .frame{padding:22px;background:
-    repeating-linear-gradient(45deg,#fafcf8,#fafcf8 12px,#f2f6ee 12px,#f2f6ee 24px);
+  /* FIGURES */
+  .figs{display:flex;flex-direction:column;gap:44px;margin-top:40px}
+  figure{margin:0}
+  .figlabel{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;
+    padding-bottom:8px;border-bottom:1px solid var(--ink);margin-bottom:14px}
+  .figlabel b{color:var(--ink);font-weight:600}
+  .figframe{position:relative;border:1px solid var(--rule);background:#fff;padding:16px;
     display:flex;justify-content:center}
-  .shot img{max-width:100%;height:auto;border-radius:12px;cursor:zoom-in;
-    box-shadow:0 8px 24px -10px rgba(0,0,0,.25)}
-  .shot .cap{padding:22px 26px 26px}
-  .shot .cap h3{font-size:1.3rem;font-weight:600;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-  .shot .cap p{color:var(--muted);margin-top:8px;max-width:640px}
-  .pill{font-family:"DM Sans";font-size:.72rem;font-weight:600;letter-spacing:.04em;padding:4px 12px;
-    border-radius:100px;background:rgba(31,158,137,.12);color:var(--teal)}
-  .pill.v{background:rgba(70,63,138,.12);color:var(--violet)}
+  .figframe img{max-width:100%;height:auto;cursor:zoom-in}
+  .figframe .c{position:absolute;width:11px;height:11px;border:1.5px solid var(--ink)}
+  .c.tl{top:-1px;left:-1px;border-right:none;border-bottom:none}
+  .c.tr{top:-1px;right:-1px;border-left:none;border-bottom:none}
+  .c.bl{bottom:-1px;left:-1px;border-right:none;border-top:none}
+  .c.br{bottom:-1px;right:-1px;border-left:none;border-top:none}
+  figcaption{font-family:"IBM Plex Mono",monospace;font-size:.8rem;color:var(--muted);
+    margin-top:12px;max-width:var(--textw);line-height:1.7}
 
-  /* JOURNEY */
-  .journey{display:flex;flex-direction:column;gap:0;margin-top:46px;position:relative}
-  .stepline{display:flex;gap:22px;align-items:flex-start;padding:22px 0;border-bottom:1px dashed var(--line)}
-  .stepline:last-child{border-bottom:none}
-  .stepline .bead{flex:none;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;
-    font-family:"Fraunces";font-weight:600;color:#fff;font-size:1.05rem;
-    background:radial-gradient(circle at 35% 30%,#5fd3bd,var(--teal));box-shadow:0 6px 16px -6px var(--teal)}
-  .stepline:nth-child(even) .bead{background:radial-gradient(circle at 35% 30%,#7e77c9,var(--violet));box-shadow:0 6px 16px -6px var(--violet)}
-  .stepline h4{font-family:"Fraunces";font-size:1.22rem;font-weight:600}
-  .stepline p{color:var(--muted);font-size:.98rem;margin-top:2px}
+  /* METHOD */
+  .steps{margin-top:36px;border-top:1px solid var(--rule)}
+  .step{display:grid;grid-template-columns:64px 1fr;gap:22px;padding:20px 0;border-bottom:1px solid var(--rule)}
+  .step .k{font-family:"IBM Plex Mono",monospace;color:var(--accent);font-size:.82rem;
+    letter-spacing:.08em;padding-top:4px}
+  .step h4{font-weight:600;font-size:1.05rem}
+  .step p{color:var(--muted);margin-top:3px;font-size:.96rem;max-width:600px}
 
-  /* CHALLENGES */
-  .challenges{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:46px}
-  @media(max-width:680px){.challenges{grid-template-columns:1fr}}
-  .chal{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px;box-shadow:var(--shadow)}
-  .chal .top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
-  .chal .ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:1.2rem;
-    background:rgba(31,158,137,.12)}
-  .chal h4{font-family:"Fraunces";font-size:1.14rem;font-weight:600}
-  .chal p{color:var(--muted);font-size:.95rem}
-  .chal .fix{margin-top:12px;font-size:.86rem;color:var(--teal);font-weight:600}
+  /* LIMITS */
+  .limits{margin-top:36px;border-top:1px solid var(--rule)}
+  .limit{display:grid;grid-template-columns:1fr 1fr;gap:28px;padding:22px 0;border-bottom:1px solid var(--rule)}
+  @media(max-width:640px){.limit{grid-template-columns:1fr;gap:10px}}
+  .limit h4{font-weight:600;font-size:1.02rem}
+  .limit .why{color:var(--muted);margin-top:4px;font-size:.94rem}
+  .limit .fix{font-size:.94rem;align-self:center}
+  .limit .fix .arr{font-family:"IBM Plex Mono",monospace;color:var(--accent);margin-right:8px}
 
-  /* ARCHITECTURE */
-  .archwrap{margin-top:46px;background:var(--card);border:1px solid var(--line);border-radius:26px;
-    padding:34px;box-shadow:var(--shadow)}
-  .flow{display:flex;align-items:stretch;gap:12px;overflow-x:auto;padding-bottom:8px}
-  .node{flex:1;min-width:120px;border-radius:18px;padding:18px 14px;text-align:center;color:#fff;
-    display:flex;flex-direction:column;justify-content:center;gap:4px}
-  .node small{opacity:.85;font-size:.72rem;letter-spacing:.04em}
-  .node b{font-family:"Fraunces";font-weight:600;font-size:1.05rem}
-  .n1{background:linear-gradient(160deg,#463f8a,#5a52a8)}
-  .n2{background:linear-gradient(160deg,#31688e,#3d7ba6)}
-  .n3{background:linear-gradient(160deg,#1f9e89,#26b89e)}
-  .n4{background:linear-gradient(160deg,#5fa832,#7fae00);color:#16241d}
-  .arrow{align-self:center;color:var(--muted);font-size:1.3rem;flex:none}
+  /* MODEL */
+  .pipe{display:flex;border:1px solid var(--ink);margin-top:36px;overflow-x:auto}
+  .stage{flex:1;min-width:132px;padding:18px 16px;border-right:1px solid var(--rule)}
+  .stage:last-child{border-right:none}
+  .stage .t{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted)}
+  .stage .v{font-weight:600;font-size:1.02rem;margin-top:8px;font-variant-numeric:tabular-nums}
+  .stage .d{font-size:.8rem;color:var(--muted);margin-top:3px}
+  .specs{display:grid;grid-template-columns:repeat(2,1fr);gap:0 44px;margin-top:32px}
+  @media(max-width:640px){.specs{grid-template-columns:1fr}}
+  .specrow{display:flex;justify-content:space-between;align-items:baseline;gap:16px;
+    padding:11px 0;border-bottom:1px solid var(--rule)}
+  .specrow .k{font-family:"IBM Plex Mono",monospace;color:var(--muted);font-size:.8rem;letter-spacing:.03em}
+  .specrow .v{font-weight:500;text-align:right}
 
-  /* SPEC GRID (redesigned) */
-  .specgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:30px}
-  @media(max-width:640px){.specgrid{grid-template-columns:repeat(2,1fr)}}
-  .speccard{display:flex;align-items:center;gap:13px;background:var(--paper);
-    border:1px solid var(--line);border-radius:16px;padding:15px 17px;transition:.2s}
-  .speccard:hover{border-color:var(--teal);transform:translateY(-2px)}
-  .speccard .dot{width:12px;height:12px;border-radius:50%;flex:none;
-    box-shadow:0 0 0 4px rgba(31,158,137,.1)}
-  .speccard small{display:block;font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
-  .speccard b{font-family:"Fraunces",serif;font-weight:600;font-size:1.06rem;line-height:1.2}
+  footer{padding:40px 0 64px}
+  footer .wrap{font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:var(--muted);line-height:1.9}
+  footer a{text-decoration:none}
 
-  footer{padding:56px 0;text-align:center;color:var(--muted);border-top:1px solid var(--line);margin-top:40px}
-  footer a{color:var(--teal);text-decoration:none;font-weight:600}
-  footer .heart{color:var(--violet)}
-
-  .lb{position:fixed;inset:0;background:rgba(20,32,25,.9);display:none;align-items:center;justify-content:center;
-    z-index:100;padding:30px;cursor:zoom-out}
+  .lb{position:fixed;inset:0;background:rgba(12,14,17,.94);display:none;align-items:center;
+    justify-content:center;z-index:100;padding:28px;cursor:zoom-out}
   .lb.open{display:flex}
-  .lb img{max-width:96%;max-height:92%;border-radius:12px;background:#fff;padding:10px}
-
-  @media(prefers-reduced-motion:reduce){#cells{display:none}}
+  .lb img{max-width:96%;max-height:92%;background:#fff;padding:10px}
 </style>
 </head>
 <body>
-<canvas id="cells"></canvas>
 
-<nav>
+<div class="topbar">
   <div class="wrap">
-    <div class="brand"><span class="cell"></span>Cell Segmentation</div>
-    <div class="nav-links">
+    <span class="id"><span class="sq"></span>CELL-SEG / U-NET</span>
+    <nav>
       <a href="#results">Résultats</a>
-      <a href="#journey">Démarche</a>
-      <a href="#challenges">Difficultés</a>
-      <a href="#archi">Le réseau</a>
-      <a href="https://github.com/abdellah427/cell_segmentation" target="_blank" rel="noopener">GitHub ↗</a>
-    </div>
+      <a href="#method">Démarche</a>
+      <a href="#limits">Difficultés</a>
+      <a href="#model">Réseau</a>
+      <a href="https://github.com/abdellah427/cell_segmentation" target="_blank" rel="noopener">GitHub</a>
+    </nav>
   </div>
-</nav>
+</div>
 
 <header>
   <div class="wrap">
-    <span class="kicker">Deep learning, imagerie biomédicale</span>
-    <h1>Voir la vie,<br>cellule par <em>cellule</em></h1>
-    <p class="lead">Un réseau <strong>U-Net</strong> entraîné avec PyTorch Lightning apprend à tracer
-      les membranes cellulaires sur des images de microscopie électronique issues du dataset ISBI-2012.</p>
-    <div class="cta">
-      <a class="btn solid" href="#results">Voir les résultats</a>
-      <a class="btn line" href="https://github.com/abdellah427/cell_segmentation" target="_blank" rel="noopener">Le code</a>
+    <div class="eyebrow">U-Net · PyTorch Lightning · dataset ISBI-2012</div>
+    <h1>Segmentation des membranes cellulaires, au pixel près.</h1>
+    <p class="abstract">Un réseau <mark>U-Net</mark> apprend à séparer les membranes de l'intérieur
+      des cellules sur des images de microscopie électronique. Entraîné sur les 30 coupes annotées
+      du challenge ISBI-2012, il reconstruit un masque binaire fidèle à la structure du tissu.</p>
+
+    <div class="meta">
+      <div><div class="k">Spécimen</div><div class="v">ISBI-2012 (ssTEM)</div></div>
+      <div><div class="k">Modèle</div><div class="v">U-Net, 4 niveaux</div></div>
+      <div><div class="k">Tâche</div><div class="v">Segmentation binaire</div></div>
     </div>
-    <div class="metrics">
-      <div class="metric"><div class="n">91,6 %</div><div class="l">Précision (train)</div></div>
-      <div class="metric"><div class="n">30</div><div class="l">Coupes microscopie</div></div>
-      <div class="metric"><div class="n">100</div><div class="l">Époques</div></div>
+
+    <div class="cta">
+      <a class="btn fill" href="#results">Voir les résultats</a>
+      <a class="btn" href="https://github.com/abdellah427/cell_segmentation" target="_blank" rel="noopener">Code source</a>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="n">30</div><div class="l">Coupes annotées</div></div>
+      <div class="stat"><div class="n">256²</div><div class="l">Résolution px</div></div>
+      <div class="stat"><div class="n">BCE+Dice</div><div class="l">Fonction de perte</div></div>
     </div>
   </div>
 </header>
@@ -189,116 +187,106 @@
 <!-- RESULTS -->
 <section id="results">
   <div class="wrap">
-    <span class="eyebrow">La galerie</span>
-    <h2>Ce que le modèle voit</h2>
-    <p class="sub">Le réseau redessine les frontières entre cellules avec une fidélité surprenante.
-      Touchez une image pour l'agrandir.</p>
+    <div class="shead"><span class="num">01</span> / Résultats</div>
+    <h2>Ce que le modèle produit</h2>
+    <p class="lead">Prédictions sur des coupes tenues à l'écart pendant l'entraînement. Cliquez une figure pour l'agrandir.</p>
 
-    <div class="gallery">
-      <div class="shot">
-        <div class="frame"><img src="assets/segmentation_result.png" alt="Image d'entrée, masque réel et masque prédit par le modèle"></div>
-        <div class="cap">
-          <h3>Prédiction du réseau <span class="pill">inférence</span></h3>
-          <p>De gauche à droite : l'image de microscopie, le masque tracé à la main (vérité terrain),
-             puis le masque prédit par le U-Net. Les contours prédits épousent la topologie réelle du tissu.</p>
+    <div class="figs">
+      <figure>
+        <div class="figlabel"><span>Fig. 01</span><b>Entrée / Vérité terrain / Prédiction</b></div>
+        <div class="figframe">
+          <span class="c tl"></span><span class="c tr"></span><span class="c bl"></span><span class="c br"></span>
+          <img src="assets/segmentation_result.png" alt="Image d'entree, masque reel et masque predit">
         </div>
-      </div>
-      <div class="shot">
-        <div class="frame"><img src="assets/dataset_preview.png" alt="Un échantillon du dataset et son masque"></div>
-        <div class="cap">
-          <h3>Une coupe du tissu <span class="pill v">ISBI-2012</span></h3>
-          <p>Une image de microscopie électronique et ses membranes annotées, après redimensionnement
-             et augmentation de données (retournements aléatoires, déformations élastiques, normalisation).</p>
+        <figcaption>De gauche à droite : la coupe de microscopie, le masque tracé à la main, puis
+          le masque prédit par le U-Net. Les contours prédits suivent la topologie réelle du tissu.</figcaption>
+      </figure>
+
+      <figure>
+        <div class="figlabel"><span>Fig. 02</span><b>Coupe et annotation du dataset</b></div>
+        <div class="figframe">
+          <span class="c tl"></span><span class="c tr"></span><span class="c bl"></span><span class="c br"></span>
+          <img src="assets/dataset_preview.png" alt="Un echantillon du dataset et son masque">
         </div>
-      </div>
+        <figcaption>Une image brute et ses membranes annotées, après redimensionnement et
+          augmentation de données (retournements, déformation élastique, normalisation).</figcaption>
+      </figure>
     </div>
   </div>
 </section>
 
-<!-- JOURNEY -->
-<section id="journey">
+<!-- METHOD -->
+<section id="method">
   <div class="wrap">
-    <span class="eyebrow">La démarche</span>
+    <div class="shead"><span class="num">02</span> / Démarche</div>
     <h2>De l'image brute au masque</h2>
-    <div class="journey">
-      <div class="stepline"><div class="bead">1</div><div><h4>Récolter</h4><p>Téléchargement du volume ISBI-2012 : 30 coupes de microscopie et leurs membranes annotées.</p></div></div>
-      <div class="stepline"><div class="bead">2</div><div><h4>Préparer</h4><p>Redimensionnement, retournements, déformations élastiques et normalisation avec Albumentations.</p></div></div>
-      <div class="stepline"><div class="bead">3</div><div><h4>Apprendre</h4><p>Un U-Net encodeur décodeur avec connexions résiduelles apprend à séparer membrane et intérieur.</p></div></div>
-      <div class="stepline"><div class="bead">4</div><div><h4>Entraîner</h4><p>Perte combinée BCE et Dice, optimiseur Adam, checkpoint du meilleur modèle avec PyTorch Lightning.</p></div></div>
-      <div class="stepline"><div class="bead">5</div><div><h4>Révéler</h4><p>On seuille la sortie du réseau, on mesure le Dice et l'IoU, puis on compare aux annotations.</p></div></div>
+    <div class="steps">
+      <div class="step"><div class="k">01</div><div><h4>Récolter</h4><p>Téléchargement du volume ISBI-2012 : 30 coupes de microscopie et leurs membranes annotées.</p></div></div>
+      <div class="step"><div class="k">02</div><div><h4>Préparer</h4><p>Redimensionnement, retournements, déformation élastique et normalisation avec Albumentations.</p></div></div>
+      <div class="step"><div class="k">03</div><div><h4>Apprendre</h4><p>Un U-Net encodeur décodeur avec connexions résiduelles sépare la membrane de l'intérieur.</p></div></div>
+      <div class="step"><div class="k">04</div><div><h4>Entraîner</h4><p>Perte BCE + Dice, optimiseur Adam, early stopping et sauvegarde du meilleur checkpoint via PyTorch Lightning.</p></div></div>
+      <div class="step"><div class="k">05</div><div><h4>Évaluer</h4><p>Seuillage de la sortie, mesure du Dice et de l'IoU sur les coupes de validation.</p></div></div>
     </div>
   </div>
 </section>
 
-<!-- CHALLENGES -->
-<section id="challenges">
+<!-- LIMITS -->
+<section id="limits">
   <div class="wrap">
-    <span class="eyebrow">Les obstacles</span>
-    <h2>Les difficultés du problème</h2>
-    <p class="sub">Ce dataset est petit et exigeant. Voici les vrais défis, et comment le code y répond.</p>
-    <div class="challenges">
-      <div class="chal">
-        <div class="top"><span class="ic">🔬</span><h4>Très peu de données</h4></div>
-        <p>Seulement 30 coupes annotées : le réseau apprend par cœur et généralise mal.</p>
-        <div class="fix">Réponse : augmentation forte, dont la déformation élastique du papier U-Net.</div>
+    <div class="shead"><span class="num">03</span> / Difficultés</div>
+    <h2>Les obstacles du problème</h2>
+    <p class="lead">Ce dataset est petit et exigeant. Chaque difficulté appelle une réponse précise dans le code.</p>
+    <div class="limits">
+      <div class="limit">
+        <div><h4>Très peu de données</h4><div class="why">30 coupes annotées seulement, le réseau sur-apprend vite.</div></div>
+        <div class="fix"><span class="arr">→</span>Augmentation forte, dont la déformation élastique du papier U-Net, et dropout.</div>
       </div>
-      <div class="chal">
-        <div class="top"><span class="ic">⚖️</span><h4>Classes déséquilibrées</h4></div>
-        <p>Les membranes sont fines, la grande majorité des pixels sont du fond. La précision brute est trompeuse.</p>
-        <div class="fix">Réponse : perte Dice combinée à la BCE, métriques Dice et IoU.</div>
+      <div class="limit">
+        <div><h4>Classes déséquilibrées</h4><div class="why">Les membranes sont fines, la plupart des pixels sont du fond.</div></div>
+        <div class="fix"><span class="arr">→</span>Perte Dice combinée à la BCE, métriques Dice et IoU plutôt que la précision brute.</div>
       </div>
-      <div class="chal">
-        <div class="top"><span class="ic">✂️</span><h4>Frontières au pixel près</h4></div>
-        <p>Il faut séparer des cellules collées, sans fusionner les régions voisines.</p>
-        <div class="fix">Réponse : U-Net et ses connexions résiduelles qui ramènent les détails fins.</div>
+      <div class="limit">
+        <div><h4>Frontières au pixel près</h4><div class="why">Il faut séparer des cellules collées sans fusionner les régions.</div></div>
+        <div class="fix"><span class="arr">→</span>Les connexions résiduelles du U-Net ramènent les détails fins perdus à l'encodage.</div>
       </div>
-      <div class="chal">
-        <div class="top"><span class="ic">🎯</span><h4>Pas de labels de test</h4></div>
-        <p>Aucune annotation de test publique : impossible de mesurer la vraie généralisation sans précaution.</p>
-        <div class="fix">Réponse : coupes mises de côté en validation, early stopping sur la perte de validation.</div>
+      <div class="limit">
+        <div><h4>Pas de labels de test</h4><div class="why">Aucune annotation de test publique pour juger la généralisation.</div></div>
+        <div class="fix"><span class="arr">→</span>Coupes mises de côté en validation et early stopping sur la perte de validation.</div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ARCHITECTURE -->
-<section id="archi">
+<!-- MODEL -->
+<section id="model">
   <div class="wrap">
-    <span class="eyebrow">Sous la lentille</span>
+    <div class="shead"><span class="num">04</span> / Réseau</div>
     <h2>L'anatomie du U-Net</h2>
-    <p class="sub">Un chemin qui comprime l'image pour en extraire le sens, puis la reconstruit
-      pixel par pixel. Les connexions résiduelles ramènent les détails perdus.</p>
+    <p class="lead">Un chemin comprime l'image pour en extraire le sens, un second la reconstruit pixel par pixel.</p>
 
-    <div class="archwrap">
-      <div class="flow">
-        <div class="node n1"><small>ENTRÉE</small><b>1 × 256²</b><small>niveaux de gris</small></div>
-        <span class="arrow">→</span>
-        <div class="node n2"><small>ENCODEUR</small><b>64 → 512</b><small>4 blocs Down</small></div>
-        <span class="arrow">→</span>
-        <div class="node n1"><small>GOULOT</small><b>1024</b><small>bottleneck</small></div>
-        <span class="arrow">→</span>
-        <div class="node n3"><small>DÉCODEUR</small><b>512 → 64</b><small>4 blocs Up + skip</small></div>
-        <span class="arrow">→</span>
-        <div class="node n4"><small>SORTIE</small><b>1 canal</b><small>masque</small></div>
-      </div>
+    <div class="pipe">
+      <div class="stage"><div class="t">Entrée</div><div class="v">1 × 256²</div><div class="d">niveaux de gris</div></div>
+      <div class="stage"><div class="t">Encodeur</div><div class="v">64 → 512</div><div class="d">4 blocs Down</div></div>
+      <div class="stage"><div class="t">Goulot</div><div class="v">1024</div><div class="d">+ dropout</div></div>
+      <div class="stage"><div class="t">Décodeur</div><div class="v">512 → 64</div><div class="d">4 blocs Up + skip</div></div>
+      <div class="stage"><div class="t">Sortie</div><div class="v">1 canal</div><div class="d">masque binaire</div></div>
+    </div>
 
-      <div class="specgrid">
-        <div class="speccard"><span class="dot" style="background:var(--teal)"></span><div><small>Filtres</small><b>64 de base</b></div></div>
-        <div class="speccard"><span class="dot" style="background:var(--violet)"></span><div><small>Profondeur</small><b>4 blocs</b></div></div>
-        <div class="speccard"><span class="dot" style="background:var(--lime)"></span><div><small>Perte</small><b>BCE + Dice</b></div></div>
-        <div class="speccard"><span class="dot" style="background:var(--teal)"></span><div><small>Optimiseur</small><b>Adam · 1e-3</b></div></div>
-        <div class="speccard"><span class="dot" style="background:var(--violet)"></span><div><small>Image</small><b>256 × 256</b></div></div>
-        <div class="speccard"><span class="dot" style="background:var(--lime)"></span><div><small>Framework</small><b>PyTorch Lightning</b></div></div>
-      </div>
+    <div class="specs">
+      <div class="specrow"><span class="k">Filtres</span><span class="v">64 de base</span></div>
+      <div class="specrow"><span class="k">Profondeur</span><span class="v">4 blocs</span></div>
+      <div class="specrow"><span class="k">Perte</span><span class="v">BCE + Dice</span></div>
+      <div class="specrow"><span class="k">Optimiseur</span><span class="v">Adam, 1e-3</span></div>
+      <div class="specrow"><span class="k">Image</span><span class="v">256 × 256</span></div>
+      <div class="specrow"><span class="k">Framework</span><span class="v">PyTorch Lightning</span></div>
     </div>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <p>Segmentation cellulaire par U-Net · PyTorch Lightning · dataset ISBI-2012.</p>
-    <p style="margin-top:6px">Code et notebook sur <a href="https://github.com/abdellah427/cell_segmentation" target="_blank" rel="noopener">GitHub</a>
-      <span class="heart">·</span> fait avec curiosité pour le vivant.</p>
+    CELL-SEG / U-NET · dataset ISBI-2012<br>
+    Code et notebook : <a href="https://github.com/abdellah427/cell_segmentation" target="_blank" rel="noopener">github.com/abdellah427/cell_segmentation</a>
   </div>
 </footer>
 
@@ -306,47 +294,10 @@
 
 <script>
   const lb=document.getElementById('lightbox'),lbImg=lb.querySelector('img');
-  document.querySelectorAll('.shot img').forEach(img=>
+  document.querySelectorAll('.figframe img').forEach(img=>
     img.addEventListener('click',()=>{lbImg.src=img.src;lb.classList.add('open')}));
   lb.addEventListener('click',()=>lb.classList.remove('open'));
   document.addEventListener('keydown',e=>{if(e.key==='Escape')lb.classList.remove('open')});
-
-  // Living cells background
-  const cv=document.getElementById('cells'),ctx=cv.getContext('2d');
-  let W,H,cells=[];
-  const palette=['31,158,137','70,63,138','127,174,0','49,104,142'];
-  function resize(){W=cv.width=innerWidth;H=cv.height=innerHeight;}
-  function seed(){
-    cells=[];const n=Math.round(Math.min(46,W/28));
-    for(let i=0;i<n;i++){
-      cells.push({
-        x:Math.random()*W,y:Math.random()*H,
-        r:14+Math.random()*46,
-        vx:(Math.random()-.5)*.25,vy:(Math.random()-.5)*.25,
-        c:palette[i%palette.length],a:.05+Math.random()*.07,
-        ph:Math.random()*Math.PI*2
-      });
-    }
-  }
-  function draw(t){
-    ctx.clearRect(0,0,W,H);
-    for(const c of cells){
-      c.x+=c.vx;c.y+=c.vy;
-      if(c.x<-80)c.x=W+80;if(c.x>W+80)c.x=-80;
-      if(c.y<-80)c.y=H+80;if(c.y>H+80)c.y=-80;
-      const wob=Math.sin(t/1400+c.ph)*3;
-      const rr=c.r+wob;
-      ctx.beginPath();ctx.arc(c.x,c.y,rr,0,Math.PI*2);
-      ctx.fillStyle='rgba('+c.c+','+c.a+')';ctx.fill();
-      ctx.lineWidth=1.4;ctx.strokeStyle='rgba('+c.c+','+(c.a*3.2)+')';ctx.stroke();
-      ctx.beginPath();ctx.arc(c.x-rr*.15,c.y-rr*.15,rr*.28,0,Math.PI*2);
-      ctx.fillStyle='rgba('+c.c+','+(c.a*2)+')';ctx.fill();
-    }
-    requestAnimationFrame(draw);
-  }
-  const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
-  resize();seed();addEventListener('resize',()=>{resize();seed();});
-  if(!reduce)requestAnimationFrame(draw);
 </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-# 🔬 Cell Segmentation : U-Net (PyTorch Lightning)
+# Cell Segmentation : U-Net (PyTorch Lightning)
 
 > Segmentation des membranes cellulaires sur des images de microscopie électronique, avec un réseau **U-Net** entraîné via **PyTorch Lightning** sur le dataset **ISBI-2012**.
 
@@ -19,7 +19,7 @@
 
 ---
 
-## 📖 Vue d'ensemble
+## Vue d'ensemble
 
 Ce projet implémente un **U-Net**, l'architecture encodeur / décodeur de référence pour la segmentation d'images biomédicales, afin de séparer les membranes cellulaires de l'intérieur des cellules sur des images de microscopie électronique (ssTEM) du système nerveux de la larve de *Drosophila*.
 
@@ -31,7 +31,7 @@ Tout le workflow vit dans [`implementation.ipynb`](implementation.ipynb) :
 4. **Entraînement** : perte combinée BCE + Dice, optimiseur Adam, planificateur de learning rate, early stopping et sauvegarde du meilleur checkpoint.
 5. **Évaluation** : seuillage de la sortie, mesure du Dice et de l'IoU, puis visualisation *entrée · vérité terrain · prédiction*.
 
-## 🖼️ Résultats
+## Résultats
 
 | Échantillon du dataset | Prédiction de segmentation |
 |:---:|:---:|
@@ -41,7 +41,7 @@ Les masques prédits suivent de près les annotations, retrouvant les frontière
 
 > Note : les images ci-dessus proviennent d'un premier entraînement. Après avoir relancé le notebook amélioré, elles seront régénérées avec le nouveau modèle (Dice et IoU affichés).
 
-## 🧗 Les difficultés du problème
+## Les difficultés du problème
 
 Ce dataset est petit et exigeant. Les principaux obstacles, et la réponse apportée dans le code :
 
@@ -52,7 +52,7 @@ Ce dataset est petit et exigeant. Les principaux obstacles, et la réponse appor
 | Frontières au pixel près | Séparer des cellules collées sans les fusionner | Connexions résiduelles du U-Net qui ramènent les détails fins |
 | Pas de labels de test publics | Impossible de mesurer la vraie généralisation naïvement | Coupes mises de côté en **validation** + **early stopping** |
 
-## 🧠 Architecture du modèle
+## Architecture du modèle
 
 Un U-Net classique, encodeur / décodeur symétrique avec connexions résiduelles :
 
@@ -85,7 +85,7 @@ Blocs de base (cellule modèle du notebook) :
 | Planificateur | ReduceLROnPlateau |
 | Époques max | 80 (avec early stopping) |
 
-## 🚀 Démarrage
+## Démarrage
 
 ### Prérequis
 
@@ -109,7 +109,7 @@ wget https://downloads.imagej.net/ISBI-2012-challenge.zip
 
 Exécutez ensuite les cellules de haut en bas pour préparer les données, entraîner le modèle et visualiser les prédictions.
 
-## 📁 Structure du projet
+## Structure du projet
 
 ```
 Cell_Segmentation/
@@ -120,19 +120,19 @@ Cell_Segmentation/
     └── assets/               # Images de resultats
 ```
 
-## 🌐 Le site
+## Le site
 
 Un petit site vitrine vit dans le dossier [`site/`](site/). Ouvrez [`site/index.html`](site/index.html) dans un navigateur pour le voir.
 
 > Note : GitHub Pages ne peut déployer que depuis la racine du dépôt ou un dossier nommé `/docs`. Pour publier le site en ligne, renommez `site/` en `docs/`, ou déplacez son contenu à la racine, avant d'activer **Settings → Pages**.
 
-## 📚 Dataset et références
+## Dataset et références
 
 - **ISBI-2012 Challenge**, *Segmentation of neuronal structures in EM stacks* : https://downloads.imagej.net/ISBI-2012-challenge.zip
 - Ronneberger, Fischer & Brox, *U-Net: Convolutional Networks for Biomedical Image Segmentation* (2015)
 - [Documentation PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/)
 - Config de référence : [SAM2-UNet](https://github.com/WZH0120/SAM2-UNet)
 
-## 📝 Licence
+## Licence
 
 Projet éducatif / de laboratoire. Libre d'utilisation et d'adaptation.
