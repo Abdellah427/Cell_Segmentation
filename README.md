@@ -3,7 +3,7 @@
 > Segmentation of cell membranes on electron-microscopy images using a **U-Net** convolutional network, trained with **PyTorch Lightning** on the **ISBI-2012** challenge dataset.
 
 <p align="center">
-  <img src="docs/assets/segmentation_result.png" alt="Segmentation result: input image, ground-truth mask, predicted mask" width="850">
+  <img src="site/assets/segmentation_result.png" alt="Segmentation result: input image, ground-truth mask, predicted mask" width="850">
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@ The full workflow lives in [`implementation.ipynb`](implementation.ipynb):
 
 | Dataset sample | Segmentation prediction |
 |:---:|:---:|
-| ![dataset](docs/assets/dataset_preview.png) | ![result](docs/assets/segmentation_result.png) |
+| ![dataset](site/assets/dataset_preview.png) | ![result](site/assets/segmentation_result.png) |
 
 The predicted membrane maps closely follow the ground-truth annotations, correctly recovering the cell boundaries and the overall topology of the tissue.
 
@@ -99,18 +99,19 @@ Then run the cells top-to-bottom to prepare the data, train the model, and visua
 Cell_Segmentation/
 ├── implementation.ipynb     # End-to-end notebook (data → model → training → viz)
 ├── README.md
-└── docs/                     # Portfolio website (deployable via GitHub Pages)
+└── site/                     # Showcase website (deployable via GitHub Pages)
     ├── index.html
     └── assets/               # Result images
 ```
 
-## 🌐 Portfolio site
+## 🌐 Website
 
-A small showcase website lives in [`docs/`](docs/). To publish it:
+A small showcase website lives in the [`site/`](site/) folder — open
+[`site/index.html`](site/index.html) locally in any browser to view it.
 
-1. Go to **Settings → Pages** in the GitHub repository
-2. Set **Source** to `Deploy from a branch`, branch `main`, folder `/docs`
-3. The site becomes available at `https://<user>.github.io/Cell_Segmentation/`
+> **Note:** GitHub Pages can only deploy from the repository root or a folder
+> named `/docs`. To publish this site online, either rename `site/` to `docs/`,
+> or move its content to the repository root before enabling **Settings → Pages**.
 
 ## 📚 Dataset & references
 
