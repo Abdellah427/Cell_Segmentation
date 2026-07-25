@@ -3,21 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cell Segmentation — U-Net</title>
+<title>Cell Segmentation - U-Net</title>
 <meta name="description" content="Segmentation de cellules par U-Net (PyTorch Lightning) sur le dataset ISBI-2012.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --paper:#f4f7f1;      /* soft petri-dish white, green bias */
+    --paper:#f4f7f1;
     --paper2:#eaf0e6;
-    --ink:#17251d;         /* deep green-black */
+    --ink:#17251d;
     --muted:#5d6d62;
     --line:#dbe4d6;
-    --teal:#1f9e89;        /* viridis teal */
-    --violet:#463f8a;      /* viridis violet */
-    --lime:#7fae00;        /* viridis lime */
+    --teal:#1f9e89;
+    --violet:#463f8a;
+    --lime:#7fae00;
     --card:#ffffff;
     --shadow:0 20px 50px -20px rgba(30,50,40,.35);
   }
@@ -93,7 +93,7 @@
     border-radius:100px;background:rgba(31,158,137,.12);color:var(--teal)}
   .pill.v{background:rgba(70,63,138,.12);color:var(--violet)}
 
-  /* JOURNEY (organic steps) */
+  /* JOURNEY */
   .journey{display:flex;flex-direction:column;gap:0;margin-top:46px;position:relative}
   .stepline{display:flex;gap:22px;align-items:flex-start;padding:22px 0;border-bottom:1px dashed var(--line)}
   .stepline:last-child{border-bottom:none}
@@ -103,6 +103,17 @@
   .stepline:nth-child(even) .bead{background:radial-gradient(circle at 35% 30%,#7e77c9,var(--violet));box-shadow:0 6px 16px -6px var(--violet)}
   .stepline h4{font-family:"Fraunces";font-size:1.22rem;font-weight:600}
   .stepline p{color:var(--muted);font-size:.98rem;margin-top:2px}
+
+  /* CHALLENGES */
+  .challenges{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:46px}
+  @media(max-width:680px){.challenges{grid-template-columns:1fr}}
+  .chal{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px;box-shadow:var(--shadow)}
+  .chal .top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+  .chal .ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:1.2rem;
+    background:rgba(31,158,137,.12)}
+  .chal h4{font-family:"Fraunces";font-size:1.14rem;font-weight:600}
+  .chal p{color:var(--muted);font-size:.95rem}
+  .chal .fix{margin-top:12px;font-size:.86rem;color:var(--teal);font-weight:600}
 
   /* ARCHITECTURE */
   .archwrap{margin-top:46px;background:var(--card);border:1px solid var(--line);border-radius:26px;
@@ -117,9 +128,17 @@
   .n3{background:linear-gradient(160deg,#1f9e89,#26b89e)}
   .n4{background:linear-gradient(160deg,#5fa832,#7fae00);color:#16241d}
   .arrow{align-self:center;color:var(--muted);font-size:1.3rem;flex:none}
-  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
-  .chip{border:1px solid var(--line);border-radius:100px;padding:8px 16px;font-size:.86rem;color:var(--ink)}
-  .chip b{color:var(--teal)}
+
+  /* SPEC GRID (redesigned) */
+  .specgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:30px}
+  @media(max-width:640px){.specgrid{grid-template-columns:repeat(2,1fr)}}
+  .speccard{display:flex;align-items:center;gap:13px;background:var(--paper);
+    border:1px solid var(--line);border-radius:16px;padding:15px 17px;transition:.2s}
+  .speccard:hover{border-color:var(--teal);transform:translateY(-2px)}
+  .speccard .dot{width:12px;height:12px;border-radius:50%;flex:none;
+    box-shadow:0 0 0 4px rgba(31,158,137,.1)}
+  .speccard small{display:block;font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+  .speccard b{font-family:"Fraunces",serif;font-weight:600;font-size:1.06rem;line-height:1.2}
 
   footer{padding:56px 0;text-align:center;color:var(--muted);border-top:1px solid var(--line);margin-top:40px}
   footer a{color:var(--teal);text-decoration:none;font-weight:600}
@@ -142,6 +161,7 @@
     <div class="nav-links">
       <a href="#results">Résultats</a>
       <a href="#journey">Démarche</a>
+      <a href="#challenges">Difficultés</a>
       <a href="#archi">Le réseau</a>
       <a href="https://github.com/abdellah427/cell_segmentation" target="_blank" rel="noopener">GitHub ↗</a>
     </div>
@@ -150,10 +170,10 @@
 
 <header>
   <div class="wrap">
-    <span class="kicker">Deep learning · imagerie biomédicale</span>
-    <h1>Voir la vie,<br>cellule par <em>cellule</em>.</h1>
+    <span class="kicker">Deep learning, imagerie biomédicale</span>
+    <h1>Voir la vie,<br>cellule par <em>cellule</em></h1>
     <p class="lead">Un réseau <strong>U-Net</strong> entraîné avec PyTorch Lightning apprend à tracer
-      les membranes cellulaires sur des images de microscopie électronique — dataset ISBI-2012.</p>
+      les membranes cellulaires sur des images de microscopie électronique issues du dataset ISBI-2012.</p>
     <div class="cta">
       <a class="btn solid" href="#results">Voir les résultats</a>
       <a class="btn line" href="https://github.com/abdellah427/cell_segmentation" target="_blank" rel="noopener">Le code</a>
@@ -179,8 +199,8 @@
         <div class="frame"><img src="assets/segmentation_result.png" alt="Image d'entrée, masque réel et masque prédit par le modèle"></div>
         <div class="cap">
           <h3>Prédiction du réseau <span class="pill">inférence</span></h3>
-          <p>De gauche à droite : l'image de microscopie · le masque tracé à la main (vérité terrain) ·
-             le masque prédit par le U-Net. Les contours prédits épousent la topologie réelle du tissu.</p>
+          <p>De gauche à droite : l'image de microscopie, le masque tracé à la main (vérité terrain),
+             puis le masque prédit par le U-Net. Les contours prédits épousent la topologie réelle du tissu.</p>
         </div>
       </div>
       <div class="shot">
@@ -188,7 +208,7 @@
         <div class="cap">
           <h3>Une coupe du tissu <span class="pill v">ISBI-2012</span></h3>
           <p>Une image de microscopie électronique et ses membranes annotées, après redimensionnement
-             en 128×128 et augmentation de données (retournements aléatoires, normalisation).</p>
+             et augmentation de données (retournements aléatoires, déformations élastiques, normalisation).</p>
         </div>
       </div>
     </div>
@@ -202,10 +222,41 @@
     <h2>De l'image brute au masque</h2>
     <div class="journey">
       <div class="stepline"><div class="bead">1</div><div><h4>Récolter</h4><p>Téléchargement du volume ISBI-2012 : 30 coupes de microscopie et leurs membranes annotées.</p></div></div>
-      <div class="stepline"><div class="bead">2</div><div><h4>Préparer</h4><p>Redimensionnement en 128×128, retournements aléatoires et normalisation avec Albumentations.</p></div></div>
-      <div class="stepline"><div class="bead">3</div><div><h4>Apprendre</h4><p>Un U-Net encodeur–décodeur avec connexions résiduelles apprend à séparer membrane et intérieur.</p></div></div>
-      <div class="stepline"><div class="bead">4</div><div><h4>Entraîner</h4><p>100 époques sur GPU, optimiseur Adam et perte BCEWithLogits pilotés par PyTorch Lightning.</p></div></div>
-      <div class="stepline"><div class="bead">5</div><div><h4>Révéler</h4><p>On seuille la sortie du réseau pour obtenir le masque final et on compare aux annotations.</p></div></div>
+      <div class="stepline"><div class="bead">2</div><div><h4>Préparer</h4><p>Redimensionnement, retournements, déformations élastiques et normalisation avec Albumentations.</p></div></div>
+      <div class="stepline"><div class="bead">3</div><div><h4>Apprendre</h4><p>Un U-Net encodeur décodeur avec connexions résiduelles apprend à séparer membrane et intérieur.</p></div></div>
+      <div class="stepline"><div class="bead">4</div><div><h4>Entraîner</h4><p>Perte combinée BCE et Dice, optimiseur Adam, checkpoint du meilleur modèle avec PyTorch Lightning.</p></div></div>
+      <div class="stepline"><div class="bead">5</div><div><h4>Révéler</h4><p>On seuille la sortie du réseau, on mesure le Dice et l'IoU, puis on compare aux annotations.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CHALLENGES -->
+<section id="challenges">
+  <div class="wrap">
+    <span class="eyebrow">Les obstacles</span>
+    <h2>Les difficultés du problème</h2>
+    <p class="sub">Ce dataset est petit et exigeant. Voici les vrais défis, et comment le code y répond.</p>
+    <div class="challenges">
+      <div class="chal">
+        <div class="top"><span class="ic">🔬</span><h4>Très peu de données</h4></div>
+        <p>Seulement 30 coupes annotées : le réseau apprend par cœur et généralise mal.</p>
+        <div class="fix">Réponse : augmentation forte, dont la déformation élastique du papier U-Net.</div>
+      </div>
+      <div class="chal">
+        <div class="top"><span class="ic">⚖️</span><h4>Classes déséquilibrées</h4></div>
+        <p>Les membranes sont fines, la grande majorité des pixels sont du fond. La précision brute est trompeuse.</p>
+        <div class="fix">Réponse : perte Dice combinée à la BCE, métriques Dice et IoU.</div>
+      </div>
+      <div class="chal">
+        <div class="top"><span class="ic">✂️</span><h4>Frontières au pixel près</h4></div>
+        <p>Il faut séparer des cellules collées, sans fusionner les régions voisines.</p>
+        <div class="fix">Réponse : U-Net et ses connexions résiduelles qui ramènent les détails fins.</div>
+      </div>
+      <div class="chal">
+        <div class="top"><span class="ic">🎯</span><h4>Pas de labels de test</h4></div>
+        <p>Aucune annotation de test publique : impossible de mesurer la vraie généralisation sans précaution.</p>
+        <div class="fix">Réponse : coupes mises de côté en validation, early stopping sur la perte de validation.</div>
+      </div>
     </div>
   </div>
 </section>
@@ -216,11 +267,11 @@
     <span class="eyebrow">Sous la lentille</span>
     <h2>L'anatomie du U-Net</h2>
     <p class="sub">Un chemin qui comprime l'image pour en extraire le sens, puis la reconstruit
-      pixel par pixel — les connexions résiduelles ramènent les détails perdus.</p>
+      pixel par pixel. Les connexions résiduelles ramènent les détails perdus.</p>
 
     <div class="archwrap">
       <div class="flow">
-        <div class="node n1"><small>ENTRÉE</small><b>1 × 128²</b><small>niveaux de gris</small></div>
+        <div class="node n1"><small>ENTRÉE</small><b>1 × 256²</b><small>niveaux de gris</small></div>
         <span class="arrow">→</span>
         <div class="node n2"><small>ENCODEUR</small><b>64 → 512</b><small>4 blocs Down</small></div>
         <span class="arrow">→</span>
@@ -230,13 +281,14 @@
         <span class="arrow">→</span>
         <div class="node n4"><small>SORTIE</small><b>1 canal</b><small>masque</small></div>
       </div>
-      <div class="chips">
-        <span class="chip"><b>Filtres</b> 64 de base</span>
-        <span class="chip"><b>Profondeur</b> 4 blocs</span>
-        <span class="chip"><b>Perte</b> BCEWithLogits</span>
-        <span class="chip"><b>Optimiseur</b> Adam · 1e-3</span>
-        <span class="chip"><b>Image</b> 128 × 128</span>
-        <span class="chip"><b>Framework</b> PyTorch Lightning</span>
+
+      <div class="specgrid">
+        <div class="speccard"><span class="dot" style="background:var(--teal)"></span><div><small>Filtres</small><b>64 de base</b></div></div>
+        <div class="speccard"><span class="dot" style="background:var(--violet)"></span><div><small>Profondeur</small><b>4 blocs</b></div></div>
+        <div class="speccard"><span class="dot" style="background:var(--lime)"></span><div><small>Perte</small><b>BCE + Dice</b></div></div>
+        <div class="speccard"><span class="dot" style="background:var(--teal)"></span><div><small>Optimiseur</small><b>Adam · 1e-3</b></div></div>
+        <div class="speccard"><span class="dot" style="background:var(--violet)"></span><div><small>Image</small><b>256 × 256</b></div></div>
+        <div class="speccard"><span class="dot" style="background:var(--lime)"></span><div><small>Framework</small><b>PyTorch Lightning</b></div></div>
       </div>
     </div>
   </div>
@@ -245,7 +297,7 @@
 <footer>
   <div class="wrap">
     <p>Segmentation cellulaire par U-Net · PyTorch Lightning · dataset ISBI-2012.</p>
-    <p style="margin-top:6px">Code &amp; notebook sur <a href="https://github.com/abdellah427/cell_segmentation" target="_blank" rel="noopener">GitHub</a>
+    <p style="margin-top:6px">Code et notebook sur <a href="https://github.com/abdellah427/cell_segmentation" target="_blank" rel="noopener">GitHub</a>
       <span class="heart">·</span> fait avec curiosité pour le vivant.</p>
   </div>
 </footer>
@@ -253,7 +305,6 @@
 <div class="lb" id="lightbox"><img src="" alt="Aperçu agrandi"></div>
 
 <script>
-  // Lightbox
   const lb=document.getElementById('lightbox'),lbImg=lb.querySelector('img');
   document.querySelectorAll('.shot img').forEach(img=>
     img.addEventListener('click',()=>{lbImg.src=img.src;lb.classList.add('open')}));
@@ -285,11 +336,9 @@
       if(c.y<-80)c.y=H+80;if(c.y>H+80)c.y=-80;
       const wob=Math.sin(t/1400+c.ph)*3;
       const rr=c.r+wob;
-      // membrane
       ctx.beginPath();ctx.arc(c.x,c.y,rr,0,Math.PI*2);
       ctx.fillStyle='rgba('+c.c+','+c.a+')';ctx.fill();
       ctx.lineWidth=1.4;ctx.strokeStyle='rgba('+c.c+','+(c.a*3.2)+')';ctx.stroke();
-      // nucleus
       ctx.beginPath();ctx.arc(c.x-rr*.15,c.y-rr*.15,rr*.28,0,Math.PI*2);
       ctx.fillStyle='rgba('+c.c+','+(c.a*2)+')';ctx.fill();
     }

@@ -1,13 +1,13 @@
-# 🔬 Cell Segmentation — U-Net (PyTorch Lightning)
+# 🔬 Cell Segmentation : U-Net (PyTorch Lightning)
 
-> Segmentation of cell membranes on electron-microscopy images using a **U-Net** convolutional network, trained with **PyTorch Lightning** on the **ISBI-2012** challenge dataset.
+> Segmentation des membranes cellulaires sur des images de microscopie électronique, avec un réseau **U-Net** entraîné via **PyTorch Lightning** sur le dataset **ISBI-2012**.
 
 <p align="center">
-  <img src="site/assets/segmentation_result.png" alt="Segmentation result: input image, ground-truth mask, predicted mask" width="850">
+  <img src="site/assets/segmentation_result.png" alt="Resultat de segmentation : image d'entree, masque reel, masque predit" width="850">
 </p>
 
 <p align="center">
-  <em>Left → right: input EM slice · ground-truth mask · model prediction — final training accuracy ≈ <b>91.6%</b></em>
+  <em>De gauche a droite : image d'entree · masque de verite terrain · prediction du modele.</em>
 </p>
 
 <p align="center">
@@ -19,107 +19,120 @@
 
 ---
 
-## 📖 Overview
+## 📖 Vue d'ensemble
 
-This project implements a **U-Net** — the reference encoder–decoder architecture for biomedical image segmentation — to separate cell membranes from cell interiors in serial-section Transmission Electron Microscopy (ssTEM) images of the *Drosophila* larva ventral nerve cord.
+Ce projet implémente un **U-Net**, l'architecture encodeur / décodeur de référence pour la segmentation d'images biomédicales, afin de séparer les membranes cellulaires de l'intérieur des cellules sur des images de microscopie électronique (ssTEM) du système nerveux de la larve de *Drosophila*.
 
-The full workflow lives in [`implementation.ipynb`](implementation.ipynb):
+Tout le workflow vit dans [`implementation.ipynb`](implementation.ipynb) :
 
-1. **Data** — download & load the ISBI-2012 volume (30 grayscale slices + membrane masks)
-2. **Augmentation** — resize to 128×128, random flips, normalization (via *Albumentations*)
-3. **Model** — a configurable U-Net (encoder / bottleneck / decoder with skip connections)
-4. **Training** — 100 epochs, Adam optimizer, `BCEWithLogitsLoss`, `BinaryAccuracy` metric
-5. **Evaluation** — threshold the sigmoid output and visualize *input · ground truth · prediction*
+1. **Données** : téléchargement et chargement du volume ISBI-2012 (30 coupes en niveaux de gris + masques de membranes).
+2. **Augmentation** : redimensionnement, retournements, déformation élastique et normalisation (via *Albumentations*).
+3. **Modèle** : un U-Net configurable (encodeur, goulot, décodeur avec connexions résiduelles).
+4. **Entraînement** : perte combinée BCE + Dice, optimiseur Adam, planificateur de learning rate, early stopping et sauvegarde du meilleur checkpoint.
+5. **Évaluation** : seuillage de la sortie, mesure du Dice et de l'IoU, puis visualisation *entrée · vérité terrain · prédiction*.
 
-## 🖼️ Results
+## 🖼️ Résultats
 
-| Dataset sample | Segmentation prediction |
+| Échantillon du dataset | Prédiction de segmentation |
 |:---:|:---:|
 | ![dataset](site/assets/dataset_preview.png) | ![result](site/assets/segmentation_result.png) |
 
-The predicted membrane maps closely follow the ground-truth annotations, correctly recovering the cell boundaries and the overall topology of the tissue.
+Les masques prédits suivent de près les annotations, retrouvant les frontières entre cellules et la topologie globale du tissu.
 
-## 🧠 Model architecture
+> Note : les images ci-dessus proviennent d'un premier entraînement. Après avoir relancé le notebook amélioré, elles seront régénérées avec le nouveau modèle (Dice et IoU affichés).
 
-A classic U-Net with a symmetric encoder–decoder and skip connections:
+## 🧗 Les difficultés du problème
+
+Ce dataset est petit et exigeant. Les principaux obstacles, et la réponse apportée dans le code :
+
+| Difficulté | Pourquoi c'est dur | Réponse dans le code |
+|---|---|---|
+| Très peu de données | 30 coupes annotées seulement, sur-apprentissage rapide | Augmentation forte (déformation élastique du papier U-Net) + dropout |
+| Classes déséquilibrées | Membranes fines, la plupart des pixels sont du fond | Perte **BCE + Dice**, métriques **Dice** et **IoU** |
+| Frontières au pixel près | Séparer des cellules collées sans les fusionner | Connexions résiduelles du U-Net qui ramènent les détails fins |
+| Pas de labels de test publics | Impossible de mesurer la vraie généralisation naïvement | Coupes mises de côté en **validation** + **early stopping** |
+
+## 🧠 Architecture du modèle
+
+Un U-Net classique, encodeur / décodeur symétrique avec connexions résiduelles :
 
 ```
-Input (1×128×128)
-  └─ Encoder: 4 × Down blocks   (Conv → BN → ReLU) ×2 + MaxPool     [64 → 128 → 256 → 512]
-       └─ Bottleneck: 2 × ConvBlock                                 [1024]
-            └─ Decoder: 4 × Up blocks (ConvTranspose + skip concat) [512 → 256 → 128 → 64]
-                 └─ OutConv (1×1 conv) → 1 channel logits
+Entrée (1×256×256)
+  encodeur : 4 blocs Down   (Conv, BN, ReLU) ×2 + MaxPool     [64, 128, 256, 512]
+    goulot : 2 ConvBlock + Dropout                            [1024]
+      décodeur : 4 blocs Up (ConvTranspose + concat du skip)  [512, 256, 128, 64]
+        OutConv (conv 1×1)  ->  1 canal de logits
 ```
 
-Building blocks (see cell 8 of the notebook):
+Blocs de base (cellule modèle du notebook) :
 
-- **`ConvBlock`** — `Conv2d(3×3) → BatchNorm → ReLU`
-- **`Down`** — two `ConvBlock`s + `MaxPool2d`, returns the pooled tensor **and** the skip
-- **`Up`** — `ConvTranspose2d` upsample, concatenate the skip, two `ConvBlock`s
-- **`OutConv`** — `1×1` convolution mapping to `n_classes` logits
-- **`UNetModule`** — a `pl.LightningModule` wiring it all together (`training_step`, `validation_step`, `configure_optimizers`)
+- **`ConvBlock`** : `Conv2d(3×3)`, `BatchNorm`, `ReLU`.
+- **`Down`** : deux `ConvBlock` + `MaxPool2d`, renvoie le tenseur réduit **et** le skip.
+- **`Up`** : upsample `ConvTranspose2d`, concaténation du skip, deux `ConvBlock`.
+- **`OutConv`** : convolution `1×1` vers `n_classes` logits.
+- **`DiceLoss`** : perte d'overlap, robuste au déséquilibre des classes.
+- **`UNetModule`** : le `pl.LightningModule` qui relie tout (`training_step`, `validation_step`, `configure_optimizers`).
 
-| Hyperparameter | Value |
+| Hyperparamètre | Valeur |
 |---|---|
-| Input channels | 1 (grayscale) |
-| Base filters | 64 |
-| Depth (blocks) | 4 |
-| Image size | 128 × 128 |
-| Loss | `binary_cross_entropy_with_logits` |
-| Optimizer | Adam (`lr = 1e-3`) |
-| Epochs | 100 |
+| Canaux d'entrée | 1 (niveaux de gris) |
+| Filtres de base | 64 |
+| Profondeur | 4 blocs |
+| Taille image | 256 × 256 |
+| Perte | BCE + Dice |
+| Métriques | Dice (F1), IoU (Jaccard) |
+| Optimiseur | Adam (`lr = 1e-3`, `weight_decay = 1e-5`) |
+| Planificateur | ReduceLROnPlateau |
+| Époques max | 80 (avec early stopping) |
 
-## 🚀 Getting started
+## 🚀 Démarrage
 
-### Requirements
+### Prérequis
 
 ```bash
 pip install pytorch-lightning torch torchvision opencv-python albumentations tifffile torchmetrics matplotlib
 ```
 
-### Run
+### Lancer
 
-Open the notebook in Jupyter or Google Colab (a GPU — e.g. Colab's T4 — is recommended):
+Ouvrez le notebook dans Jupyter ou Google Colab (un GPU, par exemple le T4 de Colab, est recommandé) :
 
 ```bash
 jupyter notebook implementation.ipynb
 ```
 
-The first cells automatically download the ISBI-2012 dataset:
+Les premières cellules téléchargent automatiquement le dataset ISBI-2012 :
 
 ```bash
 wget https://downloads.imagej.net/ISBI-2012-challenge.zip
 ```
 
-Then run the cells top-to-bottom to prepare the data, train the model, and visualize the predictions.
+Exécutez ensuite les cellules de haut en bas pour préparer les données, entraîner le modèle et visualiser les prédictions.
 
-## 📁 Project structure
+## 📁 Structure du projet
 
 ```
 Cell_Segmentation/
-├── implementation.ipynb     # End-to-end notebook (data → model → training → viz)
+├── implementation.ipynb     # Notebook complet (donnees -> modele -> entrainement -> viz)
 ├── README.md
-└── site/                     # Showcase website (deployable via GitHub Pages)
+└── site/                     # Site vitrine (deployable via GitHub Pages)
     ├── index.html
-    └── assets/               # Result images
+    └── assets/               # Images de resultats
 ```
 
-## 🌐 Website
+## 🌐 Le site
 
-A small showcase website lives in the [`site/`](site/) folder — open
-[`site/index.html`](site/index.html) locally in any browser to view it.
+Un petit site vitrine vit dans le dossier [`site/`](site/). Ouvrez [`site/index.html`](site/index.html) dans un navigateur pour le voir.
 
-> **Note:** GitHub Pages can only deploy from the repository root or a folder
-> named `/docs`. To publish this site online, either rename `site/` to `docs/`,
-> or move its content to the repository root before enabling **Settings → Pages**.
+> Note : GitHub Pages ne peut déployer que depuis la racine du dépôt ou un dossier nommé `/docs`. Pour publier le site en ligne, renommez `site/` en `docs/`, ou déplacez son contenu à la racine, avant d'activer **Settings → Pages**.
 
-## 📚 Dataset & references
+## 📚 Dataset et références
 
-- **ISBI-2012 Challenge** — *Segmentation of neuronal structures in EM stacks* — https://downloads.imagej.net/ISBI-2012-challenge.zip
-- Ronneberger, Fischer & Brox — *U-Net: Convolutional Networks for Biomedical Image Segmentation* (2015)
-- [PyTorch Lightning documentation](https://lightning.ai/docs/pytorch/stable/)
-- Reference config: [SAM2-UNet](https://github.com/WZH0120/SAM2-UNet)
+- **ISBI-2012 Challenge**, *Segmentation of neuronal structures in EM stacks* : https://downloads.imagej.net/ISBI-2012-challenge.zip
+- Ronneberger, Fischer & Brox, *U-Net: Convolutional Networks for Biomedical Image Segmentation* (2015)
+- [Documentation PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/)
+- Config de référence : [SAM2-UNet](https://github.com/WZH0120/SAM2-UNet)
 
-## 📝 License
+## 📝 Licence
 
-Educational / lab project. Feel free to use and adapt.
+Projet éducatif / de laboratoire. Libre d'utilisation et d'adaptation.
